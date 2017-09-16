@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 FIELDNAMES = ['id', 'shortname', 'slug', 'name', 'party', 'active', 'education', 'birthdate', 'occupation', 'current_jobs',
               'jobs', 'commissions', 'mandates', 'awards', 'url_democratica', 'url_parlamento', 'image_url']
 
-ROMAN_NUMERALS = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5,
+LEGISLATURE_MAP = {'Cons': 0, 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5,
                   'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10,
                   'XI': 11, 'XII': 12, 'XIII': 13, 'XIV': 14, 'XV': 15,
                   'XVI': 16, 'XVII': 17, 'XVIII': 18, 'XIX': 19, 'XX': 20,
@@ -46,7 +46,7 @@ RE_MANDATES = re.compile('TabLegs')
 def parse_legislature(s):
     s = s.replace('&nbsp;', '')
     number, dates = s.split('[')
-    number = ROMAN_NUMERALS[number.strip()]
+    number = LEGISLATURE_MAP[number.strip()]
     dates = dates.strip(' ]')
     if len(dates.split(' a ')) == 2:
         start, end = dates.split(' a ')
