@@ -189,7 +189,7 @@ def process_mp(i):
         return mprow
 
 
-def scrape(format, start=1, end=7000, outfile='', indent=1, processes=2):
+def scrape(format, ids, outfile='', indent=1, processes=2):
     # Start with including the old MP list (those not on Parlamento.pt)
     # TODO
     # from utils import getpage, load_csv
@@ -198,12 +198,11 @@ def scrape(format, start=1, end=7000, outfile='', indent=1, processes=2):
     # return data
 
     pool = multiprocessing.Pool(processes=processes)
-    max = end
     mprows = {}
     active_ids = get_active_mps()
 
     try:
-        processed_mps = (processed_mp for processed_mp in pool.map(process_mp, range(start, max), chunksize=4) if processed_mp)
+        processed_mps = (processed_mp for processed_mp in pool.map(process_mp, ids, chunksize=4) if processed_mp)
     except KeyboardInterrupt:
         pool.terminate()
 
@@ -246,12 +245,13 @@ def scrape(format, start=1, end=7000, outfile='', indent=1, processes=2):
 @click.option("-f", "--format", help="Output file format, can be json (default) or csv", default="json")
 @click.option("-s", "--start", type=int, help="Begin scrape from this ID (int required, default 0)", default=0)
 @click.option("-e", "--end", type=int, help="End scrape at this ID (int required, default 7000)", default=7000)
+@click.option("-l", "--ids-file", type=click.Path(), help="File with IDs to scrape")
 @click.option("-v", "--verbose", is_flag=True, help="Print some helpful information when running")
 @click.option("-o", "--outfile", type=click.Path(), help="Output file (default is deputados.json)")
 @click.option("-i", "--indent", type=int, help="Spaces for JSON indentation (default is 2)", default=2)
 @click.option("-p", "--processes", type=int, help="Simultaneous processes to run (default is 2)", default=2)
 @click.option("-c", "--clear-cache", help="Clean the local webpage cache", is_flag=True)
-def main(format, start, end, verbose, outfile, indent, clear_cache, processes):
+def main(format, start, end, ids_file, verbose, outfile, indent, clear_cache, processes):
     if verbose:
         import sys
         root = logging.getLogger()
@@ -263,11 +263,17 @@ def main(format, start, end, verbose, outfile, indent, clear_cache, processes):
         outfile = "deputados.csv"
     elif not outfile and format == "json":
         outfile = "deputados.json"
+    if ids_file:
+        with open(ids_file) as f:
+            ids = (int(i) for i in f.readlines())
+    else:
+        ids = range(start, end+1)
+
     if clear_cache:
         logger.info("Clearing old cache...")
         shutil.rmtree("cache/")
 
-    scrape(format, start, end, outfile, indent, processes)
+    scrape(format, ids, outfile, indent, processes)
 
 if __name__ == "__main__":
     main()
