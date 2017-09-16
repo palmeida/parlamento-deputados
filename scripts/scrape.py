@@ -225,7 +225,7 @@ def scrape(format, start=1, end=7000, outfile='', indent=1, processes=2):
     logger.info("Saving to file %s..." % outfile)
     if format == "json":
         depsfp = io.open(outfile, 'w+')
-        depsfp.write(dumps(mprows, encoding='utf-8', ensure_ascii=False, indent=indent))
+        depsfp.write(dumps(mprows, ensure_ascii=False, indent=indent))
         depsfp.close()
     elif format == "csv":
         depsfp = open(outfile, 'w+')
@@ -238,7 +238,7 @@ def scrape(format, start=1, end=7000, outfile='', indent=1, processes=2):
                 if type(row[key]) == list:
                     # convert lists to ;-separated strings
                     row[key] = "; ".join(row[key])
-            row = {k: v.strip().encode('utf-8') if type(v) in (str, unicode) else v for k, v in row.items()}
+            row = {k: str(v).strip() for k, v in row.items()}
             writer.writerow(row)
 
 
