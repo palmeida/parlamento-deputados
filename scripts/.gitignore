@@ -6,4 +6,5 @@ cache/
 data.sqlite
 deputados.csv
 deputados.json
+*_ids.txt
 _cache
