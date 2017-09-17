@@ -18,15 +18,18 @@ from zenlog import log
 
 logger = logging.getLogger(__name__)
 
-FIELDNAMES = ['id', 'shortname', 'slug', 'name', 'party', 'active', 'education', 'birthdate', 'occupation', 'current_jobs',
-              'jobs', 'commissions', 'mandates', 'awards', 'url_democratica', 'url_parlamento', 'image_url']
+FIELDNAMES = ['id', 'shortname', 'slug', 'name', 'party', 'active', 'education',
+              'birthdate', 'occupation', 'current_jobs', 'jobs', 'commissions',
+              'mandates', 'awards', 'url_democratica', 'url_parlamento',
+              'image_url']
 
 LEGISLATURE_MAP = {'Cons': 0, 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5,
-                  'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10,
-                  'XI': 11, 'XII': 12, 'XIII': 13, 'XIV': 14, 'XV': 15,
-                  'XVI': 16, 'XVII': 17, 'XVIII': 18, 'XIX': 19, 'XX': 20,
-                  'XXI': 21, 'XXII': 22, 'XXIII': 23, 'XXIV': 24, 'XXV': 25}
+                   'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11,
+                   'XII': 12, 'XIII': 13, 'XIV': 14, 'XV': 15, 'XVI': 16,
+                   'XVII': 17, 'XVIII': 18, 'XIX': 19, 'XX': 20, 'XXI': 21,
+                   'XXII': 22, 'XXIII': 23, 'XXIV': 24, 'XXV': 25}
 
+DEMOCRATICA_URL = 'http://demo.cratica.org/deputados/%s/'
 ACTIVE_MP_URL = 'http://www.parlamento.pt/DeputadoGP/Paginas/Deputadoslista.aspx'
 MP_BIO_URL_FORMATTER = 'http://www.parlamento.pt/DeputadoGP/Paginas/Biografia.aspx?BID=%d'
 
@@ -86,7 +89,8 @@ def extract_details(block):
 
 
 def extract_multiline_details(block):
-    return [item.strip(" ;,") for item in chain.from_iterable(tr.text.split('\n') for tr in block.find_all('tr')[1:]) if item]
+    items = (tr.text.split('\n') for tr in block.find_all('tr')[1:])
+    return [item.strip(" ;,") for item in chain.from_iterable(items) if item]
 
 
 def process_mp(i):
@@ -133,7 +137,7 @@ def process_mp(i):
 
         mprow['shortname'] = t
         mprow['slug'] = slugify(t)
-        mprow['url_democratica'] = 'http://demo.cratica.org/deputados/%s/' % slugify(t)
+        mprow['url_democratica'] = DEMOCRATICA_URL % slugify(t)
         if birthdate:
             mprow['birthdate'] = birthdate.text
         if party:
@@ -189,11 +193,12 @@ def process_mp(i):
         return mprow
 
 
-def scrape(format, ids, outfile='', indent=1, processes=2):
+def scrape(output_format, ids, outfile='', indent=1, processes=2):
     # Start with including the old MP list (those not on Parlamento.pt)
     # TODO
     # from utils import getpage, load_csv
-    # csvkeys = ('leg', 'constituency_code', 'constituency', 'party', 'name', 'date_start', 'date_end')
+    # csvkeys = ('leg', 'constituency_code', 'constituency', 'party', 'name',
+    #            'date_start', 'date_end')
     # data = load_csv('deputados-antigos.csv', keys=csvkeys, header=True)
     # return data
 
@@ -203,14 +208,16 @@ def scrape(format, ids, outfile='', indent=1, processes=2):
 
     processed_mps = []
     try:
-        processed_mps = (processed_mp for processed_mp in pool.map(process_mp, ids, chunksize=4) if processed_mp)
+        processed_mps = (processed_mp for processed_mp in
+                         pool.map(process_mp, ids, chunksize=4) if processed_mp)
     except KeyboardInterrupt:
         pool.terminate()
 
     for processed_mp in processed_mps:
         shortname = processed_mp['shortname']
         if shortname in mprows:
-            log.warning("Duplicate shortname: %s (%s, %s)" % (shortname, mprows[shortname]['id'], processed_mp['id']))
+            log.warning("Duplicate shortname: %s (%s, %s)" % (
+                shortname, mprows[shortname]['id'], processed_mp['id']))
         mprows[shortname] = processed_mp
 
     for k in mprows.keys():
@@ -219,15 +226,16 @@ def scrape(format, ids, outfile='', indent=1, processes=2):
         else:
             mprows[k]['active'] = False
 
-    # Ordenar segundo o shortname (ordenamos pela slug para não dar molho com os acentos)
+    # Ordenar segundo o shortname (ordenamos pela slug para não dar molho
+    # com os acentos)
     mprows = OrderedDict(sorted(mprows.items(), key=lambda x: slugify(x[0])))
 
     logger.info("Saving to file %s..." % outfile)
-    if format == "json":
+    if output_format == "json":
         depsfp = io.open(outfile, 'w+')
         depsfp.write(dumps(mprows, ensure_ascii=False, indent=indent))
         depsfp.close()
-    elif format == "csv":
+    elif output_format == "csv":
         depsfp = open(outfile, 'w+')
         writer = csv.DictWriter(depsfp, fieldnames=FIELDNAMES)
         writer.writeheader()
@@ -243,16 +251,29 @@ def scrape(format, ids, outfile='', indent=1, processes=2):
 
 
 @click.command()
-@click.option("-f", "--format", help="Output file format, can be json (default) or csv", default="json")
-@click.option("-s", "--start", type=int, help="Begin scrape from this ID (int required, default 0)", default=0)
-@click.option("-e", "--end", type=int, help="End scrape at this ID (int required, default 7000)", default=7000)
-@click.option("-l", "--ids-file", type=click.Path(), help="File with IDs to scrape")
-@click.option("-v", "--verbose", is_flag=True, help="Print some helpful information when running")
-@click.option("-o", "--outfile", type=click.Path(), help="Output file (default is deputados.json)")
-@click.option("-i", "--indent", type=int, help="Spaces for JSON indentation (default is 2)", default=2)
-@click.option("-p", "--processes", type=int, help="Simultaneous processes to run (default is 2)", default=2)
-@click.option("-c", "--clear-cache", help="Clean the local webpage cache", is_flag=True)
-def main(format, start, end, ids_file, verbose, outfile, indent, clear_cache, processes):
+@click.option("-f", "--format", "output_format",
+              help="Output file format, can be json (default) or csv",
+              default="json")
+@click.option("-s", "--start", type=int,
+              help="Begin scrape from this ID (int required, default 0)",
+              default=0)
+@click.option("-e", "--end", type=int,
+              help="End scrape at this ID (int required, default 7000)",
+              default=7000)
+@click.option("-l", "--ids-file", type=click.Path(),
+              help="File with IDs to scrape")
+@click.option("-v", "--verbose", is_flag=True,
+              help="Print some helpful information when running")
+@click.option("-o", "--outfile", type=click.Path(),
+              help="Output file (default is deputados.json)")
+@click.option("-i", "--indent", type=int,
+              help="Spaces for JSON indentation (default is 2)", default=2)
+@click.option("-p", "--processes", type=int,
+              help="Simultaneous processes to run (default is 2)", default=2)
+@click.option("-c", "--clear-cache", help="Clean the local webpage cache",
+              is_flag=True)
+def main(output_format, start, end, ids_file, verbose, outfile, indent,
+         clear_cache, processes):
     if verbose:
         import sys
         root = logging.getLogger()
@@ -260,9 +281,9 @@ def main(format, start, end, ids_file, verbose, outfile, indent, clear_cache, pr
         ch.setLevel(logging.INFO)
         root.setLevel(logging.INFO)
         root.addHandler(ch)
-    if not outfile and format == "csv":
+    if not outfile and output_format == "csv":
         outfile = "deputados.csv"
-    elif not outfile and format == "json":
+    elif not outfile and output_format == "json":
         outfile = "deputados.json"
     if ids_file:
         with open(ids_file) as f:
@@ -274,7 +295,8 @@ def main(format, start, end, ids_file, verbose, outfile, indent, clear_cache, pr
         logger.info("Clearing old cache...")
         shutil.rmtree("cache/")
 
-    scrape(format, ids, outfile, indent, processes)
+    scrape(output_format, ids, outfile, indent, processes)
+
 
 if __name__ == "__main__":
     main()
