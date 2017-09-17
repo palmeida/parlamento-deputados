@@ -65,7 +65,7 @@ def get_active_mps():
         logger.info("Fetching active MP list...")
         active_mp_list = getpage(ACTIVE_MP_URL)
         soup = BeautifulSoup(active_mp_list, "lxml")
-    except:  # há muitos erros http ou parse que podem ocorrer
+    except Exception:  # há muitos erros http ou parse que podem ocorrer
         logger.warning('Active MP page could not be fetched.')
         raise
 
@@ -201,6 +201,7 @@ def scrape(format, ids, outfile='', indent=1, processes=2):
     mprows = {}
     active_ids = get_active_mps()
 
+    processed_mps = []
     try:
         processed_mps = (processed_mp for processed_mp in pool.map(process_mp, ids, chunksize=4) if processed_mp)
     except KeyboardInterrupt:
