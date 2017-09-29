@@ -217,6 +217,7 @@ class ParliamentIDScraper:
         output_file = '{}_ids.txt'.format(self.entity)
         with open(output_file, 'w', encoding='utf8') as f:
             ids = chain.from_iterable(self.id_list.values())
+            ids = list(set(ids))
             f.write('\n'.join(sorted(ids, key=int)))
             f.write('\n')
         if self.cache:
