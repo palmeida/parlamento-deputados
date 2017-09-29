@@ -11,7 +11,7 @@ import logging
 import multiprocessing
 import click
 from bs4 import BeautifulSoup
-from name_replaces import SHORTNAME_REPLACES
+from name_replaces import NAME_REPLACES, SHORTNAME_REPLACES
 from utils import getpage, slugify
 from collections import OrderedDict
 from zenlog import log
@@ -100,6 +100,7 @@ def process_mp(i):
     soup = BeautifulSoup(getpage(url), "lxml")
     name = soup.find('span', id=RE_NAME)
     if name:
+        name = name.text
         short = soup.find('span', id=RE_SHORT)
         birthdate = soup.find('span', id=RE_BIRTHDATE)
         party = soup.find('span', id=RE_PARTY)
@@ -112,9 +113,12 @@ def process_mp(i):
         mandates = soup.find('table', id=RE_MANDATES)
         image_src = soup.find('td', {'class': 'tdFotoBio'}).img['src']
 
+        if name in NAME_REPLACES:
+            name = NAME_REPLACES[name]
+
         mprow = OrderedDict()
         mprow['id'] = i
-        mprow['name'] = name.text
+        mprow['name'] = name
         mprow['url_parlamento'] = url
 
         # Ver se é um dos nomes que devemos rectificar
