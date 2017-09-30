@@ -35,6 +35,8 @@ PAGER_LABEL = 'ARLabel'
 
 # Link containing the ID to be retrieved, different for each entity
 ENTITY_XPATH = '//a[contains(@id, "{}")]'
+# Link containing session number in attendance pages
+NUMBER_XPATH = '//a[contains(@title, "{}")]'
 # Common parts of the string in the link to switch pages. The variable part
 # is included in the dictionary of the entity
 TYPE_STRING = 'ctl00$ctl43${}$ctl00$gvResults'
@@ -59,6 +61,7 @@ TARGET_DICT = {
         'type_string': 'g_90441d47_53a9_460e_a62f_b50c50d57276',
         'legislature_label': 'Legislatura',
         'id_label': 'hplData',
+        'number_label': 'n.º',
     },
 }
 
@@ -76,6 +79,10 @@ class ParliamentIDScraper:
         self.entity_xpath = ENTITY_XPATH.format(self.type_params['id_label'])
         self.pager_string = TYPE_STRING.format(self.type_params['type_string'])
         self.url = urljoin(URL, self.type_params['path'])
+        if entity == 'attendance':
+            self.number_xpath = NUMBER_XPATH.format(
+                self.type_params['number_label']
+            )
 
         # Initialize result and cache dicts
         self.id_list = defaultdict(list)
@@ -118,10 +125,18 @@ class ParliamentIDScraper:
         return cache_dict
 
     def get_ids(self):
-        """Get all IDs from current page"""
+        """Get all IDs from current page
+
+        In the case of attendance, we also need to get the session number
+        """
         links = self.driver.find_elements_by_xpath(self.entity_xpath)
+        ids = [link.get_attribute('href').rsplit('=')[1] for link in links]
+        if self.entity == 'attendance':
+            number_links = self.driver.find_elements_by_xpath(self.number_xpath)
+            numbers = [number_link.text for number_link in number_links]
+            ids = zip(ids, numbers)
         # href is like parlamento.pt/DeputadoGP/Paginas/Biografia.aspx?BID=3
-        return {link.get_attribute('href').rsplit('=')[1] for link in links}
+        return set(ids)
 
     def process_legislatures(self, legislatures):
         """Process legislatures and deal with failures.
@@ -218,7 +233,14 @@ class ParliamentIDScraper:
         with open(output_file, 'w', encoding='utf8') as f:
             ids = chain.from_iterable(self.id_list.values())
             ids = list(set(ids))
-            f.write('\n'.join(sorted(ids, key=int)))
+            if self.entity == 'attendance':
+                for attendance_id, number in sorted(
+                        ids,
+                        key=lambda x: int(x[0])):
+                    f.write(','.join([attendance_id, number]))
+                    f.write('\n')
+            else:
+                f.write('\n'.join(sorted(ids, key=int)))
             f.write('\n')
         if self.cache:
             self.cache_dict['ids'] = list(self.cache_dict['ids'])
